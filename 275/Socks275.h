@@ -8,7 +8,7 @@
 
 /* Sensor options */
 
-#define MOVING_SUM_SIZE 500
+#define MOVING_SUM_SIZE 10
 
 /* Class A301 */
 

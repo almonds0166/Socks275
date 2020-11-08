@@ -34,6 +34,7 @@
 
 // determines when to switch states
 #define TOLERANCE 500 // will probably rename to be more clear
+#define TOL_LOW2HIGH 10 // for too_low to in_range state
 
 #include <Socks275.h> // for the FlexiForce sensors
 
@@ -165,7 +166,7 @@ void loop() {
          } else {
             outside_range_count = 0;
          }
-         if( outside_range_count >= TOLERANCE ) {
+         if( outside_range_count >= TOL_LOW2HIGH ) {
             // we're now considered in range
             outside_range_count = 0;
             state = STATE_IN_RANGE;
