@@ -3,6 +3,16 @@
  * Compiler constants
  */
 
+// Clock cycle definitions of the system. How long it will take
+// the device to respond to changes. All units in microseconds.
+#define STEP_PERIOD 10000
+#define BLINK_PERIOD 1000000
+
+// determines when to switch states
+#define TOLERANCE 250 // will probably rename to be more clear
+#define TOL_LOW_INR 10 // for TOO_LOW to IN_RANGE transition
+#define TOL_INR_HIGH 10 // for IN_RANGE to TOO_HIGH transition
+
 // pins for FlexiForce sensors
 #define SENSOR_UPPER  A7
 #define SENSOR_MIDDLE A8
@@ -21,20 +31,11 @@
 #define STATE_TOO_HIGH 2
 #define STATE_IN_RANGE 3
 
-// Clock cycle definitions of the system. How long it will take
-// the device to respond to changes. All units in microseconds.
-#define STEP_PERIOD 10000
-#define BLINK_PERIOD 1000000
-
 // Pressure space we're working in. All are floats in units of
 // mmHg.
 #define P_MIN 15.0
 #define P_MAX 50.0
 #define P_INCREMENT 5.0
-
-// determines when to switch states
-#define TOLERANCE 500 // will probably rename to be more clear
-#define TOL_LOW2HIGH 10 // for too_low to in_range state
 
 #include <Socks275.h> // for the FlexiForce sensors
 
@@ -166,7 +167,7 @@ void loop() {
          } else {
             outside_range_count = 0;
          }
-         if( outside_range_count >= TOL_LOW2HIGH ) {
+         if( outside_range_count >= TOL_LOW_INR ) {
             // we're now considered in range
             outside_range_count = 0;
             state = STATE_IN_RANGE;
@@ -206,7 +207,7 @@ void loop() {
          } else {
             outside_range_count = 0;
          }
-         if( outside_range_count >= TOLERANCE ) {
+         if( outside_range_count >= TOL_INR_HIGH ) {
             state = STATE_TOO_HIGH;
             outside_range_count = 0;
          } else if( outside_range_count <= -TOLERANCE ) {
