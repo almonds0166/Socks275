@@ -44,11 +44,11 @@ A301 sensor_lower(SENSOR_LOWER);
 
 #include "gui.h" // buttons and OLED
 
-// button Bounce objects
-Bounce btn_up   = Bounce(BTN_UP, BTN_DEBOUNCE);
-Bounce btn_down = Bounce(BTN_DOWN, BTN_DEBOUNCE);
-Bounce btn_set  = Bounce(BTN_SET, BTN_DEBOUNCE);
-Bounce btn_E    = Bounce(BTN_E, BTN_DEBOUNCE);
+// button Bounce2 objects
+Bounce btn_up   = Bounce();
+Bounce btn_down = Bounce();
+Bounce btn_set  = Bounce();
+Bounce btn_E    = Bounce();
 
 // OLED display object
 U8G2_SH1106_128X64_NONAME_F_4W_HW_SPI
@@ -115,6 +115,10 @@ void setup() {
    pinMode(BTN_DOWN, INPUT_PULLUP);
    pinMode(BTN_SET, INPUT_PULLUP);
    pinMode(BTN_E, INPUT_PULLUP);
+   btn_up.attach(BTN_UP);     btn_up.interval(BTN_DEBOUNCE);
+   btn_down.attach(BTN_DOWN); btn_down.interval(BTN_DEBOUNCE);
+   btn_set.attach(BTN_SET);   btn_set.interval(BTN_DEBOUNCE);
+   btn_E.attach(BTN_E);       btn_E.interval(BTN_DEBOUNCE);
    update_buttons();
 
    write_current_pressure();
@@ -213,7 +217,7 @@ void loop() {
    }
 
    // non-state specific functions
-   if( btn_E.fallingEdge() ) {
+   if( btn_E.fell() ) {
       if( valve_is_on ) {
          turn_off_valve();
          valve_is_on = false;
@@ -227,7 +231,7 @@ void loop() {
       outside_range_count = 0;
       state = STATE_INITIAL;
       write_set_pressure();
-   } else if( btn_set.risingEdge() ) {
+   } else if( btn_set.rose() ) {
       P_desired = P_temp;
       write_set_pressure();
       if( P_reading < P_desired - P_INCREMENT ) {
@@ -237,12 +241,12 @@ void loop() {
       } else {
          state = STATE_IN_RANGE;
       }
-   } else if( btn_up.risingEdge() ) {
+   } else if( btn_up.rose() ) {
       if( P_temp < P_MAX ) {
          P_temp += P_INCREMENT;
          write_set_pressure();
       }
-   } else if( btn_down.risingEdge() ) {
+   } else if( btn_down.rose() ) {
       if( P_temp > P_MIN ) {
          P_temp -= P_INCREMENT;
          write_set_pressure();

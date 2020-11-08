@@ -4,7 +4,7 @@
  */
  
 // https://www.pjrc.com/teensy/td_libs_Bounce.html
-#include <Bounce.h>
+#include <Bounce2.h>
 
 // button pin definitions
 #define BTN_UP   A6
