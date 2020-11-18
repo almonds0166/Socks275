@@ -1,17 +1,28 @@
 
+#include <Six302.h>
+
 /*
  * Compiler constants
  */
 
 // Clock cycle definitions of the system. How long it will take
 // the device to respond to changes. All units in microseconds.
-#define STEP_PERIOD 10000
-#define BLINK_PERIOD 1000000
+#define STEP_PERIOD   10000
+#define REPORT_PERIOD 50000
+#define BLINK_PERIOD  1000000
 
 // determines when to switch states
-#define TOLERANCE 250 // will probably rename to be more clear
+// units of time cycles
 #define TOL_LOW_INR 10 // for TOO_LOW to IN_RANGE transition
-#define TOL_INR_HIGH 10 // for IN_RANGE to TOO_HIGH transition
+#define TOL_INR_LOW 10 // for IN_RANGE to TOO_LOW
+#define TOL_INR_HIGH 10 // for IN_RANGE to TOO_HIGH
+#define TOL_HIGH_INR 10 // for TOO_HIGH to IN_RANGE
+
+// units of mmHg
+#define DEV_LOW_INR 5.0 // transition from LOW to IN_RANGE state
+#define DEV_INR_LOW -80 // really low so that valve only turns on once
+#define DEV_INR_HIGH 5.0
+#define DEV_HIGH_INR -5.0
 
 // pins for FlexiForce sensors
 #define SENSOR_UPPER  A7
@@ -37,12 +48,19 @@
 #define P_MAX 50.0
 #define P_INCREMENT 5.0
 
+// 6302view data reporter
+// https://github.com/almonds0166/6302view
+CommManager cm(STEP_PERIOD, REPORT_PERIOD);
+
 #include <Socks275.h> // for the FlexiForce sensors
 
 // sensor objects
 A301 sensor_upper(SENSOR_UPPER);
 A301 sensor_middle(SENSOR_MIDDLE);
 A301 sensor_lower(SENSOR_LOWER);
+float P_lower;
+float P_middle;
+float P_upper;
 
 #include "gui.h" // buttons and OLED
 
@@ -123,33 +141,27 @@ void setup() {
    btn_E.attach(BTN_E);       btn_E.interval(BTN_DEBOUNCE);
    update_buttons();
 
+   // setup 6302 modules
+   cm.addPlot(&P_reading,  "P_reading", 0, 75);
+   cm.addPlot(&P_lower,   "P_lower",    0, 75);
+   cm.addPlot(&P_middle,  "P_middle",   0, 75);
+   cm.addPlot(&P_upper,   "P_upper",    0, 75);
+
+   turn_off_buzzer();
+   turn_off_valve();
+
    write_current_pressure();
    write_set_pressure();
 
-   Serial.begin(115200);
-   while(!Serial);
-
-   Serial.println("state,P_lower,P_middle,P_upper,P_reading,valve_is_on,device_is_screeching");
-
+   // connect over Serial
+   cm.connect(&Serial, 115200);
+   
    main_timer = 0;
 }
 
 void loop() {
    update_buttons();
    update_pressure_readings();
-
-   // debug info
-   // system state, lower pressure, middle pressure, upper pressure, averaged pressure, valve on, buzzer on
-   Serial.printf(
-      "%d,%.1f,%.1f,%.1f,%.1f,%d,%d\n",
-      state,
-      sensor_lower.readPressure(),
-      sensor_middle.readPressure(),
-      sensor_upper.readPressure(),
-      P_reading,
-      valve_is_on? 1 : 0,
-      device_is_screeching? 1 : 0
-   );
 
    // state specific functions
    switch( state ) {
@@ -162,7 +174,7 @@ void loop() {
             turn_on_valve();
             valve_is_on = true;
          }
-         if( P_reading > P_desired - P_INCREMENT ) {
+         if( P_reading > P_desired + DEV_LOW_INR ) {
             outside_range_count++;
          } else {
             outside_range_count = 0;
@@ -179,12 +191,12 @@ void loop() {
             alert_high_pressure();
             device_is_screeching = true;
          }
-         if( P_reading < P_desired + P_INCREMENT ) {
+         if( P_reading < P_desired + DEV_LOW_INR ) {
             outside_range_count--;
          } else {
             outside_range_count = 0;
          }
-         if( outside_range_count <= -TOLERANCE ) {
+         if( outside_range_count <= -TOL_HIGH_INR ) {
             // we're now considered in range
             outside_range_count = 0;
             state = STATE_IN_RANGE;
@@ -200,9 +212,9 @@ void loop() {
             turn_off_buzzer();
             device_is_screeching = false;
          }
-         if( P_reading > P_desired + P_INCREMENT ) {
+         if( P_reading > P_desired + DEV_INR_HIGH ) {
             outside_range_count++;
-         } else if( P_reading < P_desired - P_INCREMENT ) {
+         } else if( P_reading < P_desired + DEV_INR_LOW ) {
             outside_range_count--;
          } else {
             outside_range_count = 0;
@@ -210,7 +222,7 @@ void loop() {
          if( outside_range_count >= TOL_INR_HIGH ) {
             state = STATE_TOO_HIGH;
             outside_range_count = 0;
-         } else if( outside_range_count <= -TOLERANCE ) {
+         } else if( outside_range_count <= -TOL_INR_LOW ) {
             state = STATE_TOO_LOW;
             outside_range_count = 0;
          }
@@ -256,20 +268,12 @@ void loop() {
    }
 
    update_display();
-   wait();
+   cm.step();
 }
 
 /*
  * All other functions
  */
-
-void wait() { // loop timing control
-   int32_t headroom = STEP_PERIOD - main_timer;
-   if( headroom <= 0 )
-      Serial.printf("Warning: Headroom is %d microseconds!\n", headroom);
-   while(STEP_PERIOD > main_timer);
-   main_timer = 0;
-}
 
 void update_buttons() {
    btn_up.update();
@@ -282,10 +286,13 @@ void update_pressure_readings() {
    sensor_upper.update();
    sensor_middle.update();
    sensor_lower.update();
+   P_lower  = sensor_lower.readPressure();
+   P_middle = sensor_middle.readPressure();
+   P_upper  = sensor_upper.readPressure();
    P_reading = (
-      sensor_upper.readPressure() +
-      sensor_middle.readPressure() +
-      sensor_lower.readPressure() ) / 3.0;
+      P_lower +
+      P_middle +
+      P_upper ) / 3.0;
 }
 
 void update_display() {
